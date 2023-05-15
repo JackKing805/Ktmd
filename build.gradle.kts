@@ -6,7 +6,7 @@ plugins {
     `maven-publish`
 }
 
-val vv = "0.0.2"
+val vv = "0.0.3"
 
 
 group = "com.cool"
