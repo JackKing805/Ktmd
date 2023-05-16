@@ -2,7 +2,9 @@ package com.cool.ktmd.match
 
 import com.cool.ktmd.match.exceptions.CommendNoSpaceException
 import com.cool.ktmd.match.exceptions.ErrorHeaderException
+import com.cool.ktmd.match.exceptions.HeaderAndCommendNoSpaceException
 import com.cool.ktmd.match.exceptions.ValueAndCommendNoSpaceException
+import com.cool.ktmd.match.interfaces.MatchListener
 import com.cool.ktmd.match.model.Commend
 import com.cool.ktmd.match.model.FormatterCommend
 import com.cool.ktmd.match.model.MatchResult
@@ -14,10 +16,13 @@ class KmdMatcher(
     private val commends:Array<FormatterCommend>,
     private val version: Version = Version(1,"1.0")
 ) {
+    private var onMatch:MatchListener?=null
+
     //匹配header：(^header)
     //匹配commed:(-$commed +\w*)
     //命令行：(^[a-z|A-Z]*)[ ]+(-[a-z|A-Z][ ]+\w*)
     private val headerRegex = Pattern.compile("(^$header) ?")
+    private val headerErrorRegex = Pattern.compile("(^$header)\\S+")
 //    private val commendRegex = commends.map {
 //        Patterns(
 //            Pattern.compile("(-${it.commend}) +([^-].*[^- ])"),
@@ -27,15 +32,26 @@ class KmdMatcher(
 
     //(-\w*) ? -version
     //(-\w*) +([^-].*[^- ]) -open asd
-    private val keyValueRegex = Pattern.compile("(-\\w*) +([^-].?[^-][^ ])")
-    private val keyRegex = Pattern.compile("(-\\w*) ?")
+    //todo:优化规则1:-(\\w*)\\s+([^\\s-]+)
+    private val keyValueRegex = Pattern.compile("-(\\w*)\\s+([^\\s-]+)")
+    private val keyRegex = Pattern.compile("-(\\w+) ?")
 
 
-    private val cErrorRegex1 = Pattern.compile("(-[a-z|A-Z]*?)(-[a-z|A-Z].*?)")//-b-c
-    private val cErrorRegex2 = Pattern.compile(" ([^-]\\w*?)(-\\w*[^- ])")//n-b
+    private val cErrorRegex1 = Pattern.compile("-(\\w+)-(\\w+)")//-b-c
+    private val cErrorRegex2 = Pattern.compile(" (\\w+)-(\\w+)")//n-b
 
 
     private fun verify(commend: String){
+        val matcher1 = headerErrorRegex.matcher(commend)
+        if (matcher1.find()){
+            throw HeaderAndCommendNoSpaceException()
+        }
+
+        val headerMatcher = headerRegex.matcher(commend)
+        if (!headerMatcher.find()){
+            throw ErrorHeaderException(header,commend)
+        }
+
         val matcher = cErrorRegex1.matcher(commend)
         while (matcher.find()){
             throw CommendNoSpaceException(matcher.group(1).replace("-",""),matcher.group(2).replace("-",""))
@@ -43,22 +59,13 @@ class KmdMatcher(
 
         val matcher2 = cErrorRegex2.matcher(commend)
         while (matcher2.find()){
-            println("${matcher2.group(0)} 1:${matcher2.group(1)} ,2:${matcher2.group(2)}")
             throw ValueAndCommendNoSpaceException(matcher2.group(1),matcher2.group(2).replace("-",""))
         }
     }
 
     fun match(commend:String): MatchResult {
-        val headerMatcher = headerRegex.matcher(commend)
-        var headerFind :String?=null
-        if (headerMatcher.find()){
-            headerFind = headerMatcher.group(0)
-        }
-        if (headerFind==null){
-            throw ErrorHeaderException(header,commend)
-        }
-        var removeHeaderCommend = commend.replace(headerFind,"").trim()
         verify(commend)
+        var removeHeaderCommend = commend.replace(header,"").trim()
 
         val countCommends = mutableListOf<Commend>()
         val unknownCommend = mutableListOf<Commend>()
@@ -92,7 +99,28 @@ class KmdMatcher(
             }
         }
 
-        return MatchResult(header,countCommends.toTypedArray(), unknownCommend.toTypedArray(),removeHeaderCommend)
+        countCommends.sortBy{
+            commend.indexOf("-${it.commend}")
+        }
+
+        unknownCommend.sortBy {
+            commend.indexOf("-${it.commend}")
+        }
+
+        return MatchResult(header,countCommends.toTypedArray(), unknownCommend.toTypedArray(),removeHeaderCommend,commends)
+    }
+
+    fun input(commend: String){
+        try {
+            val match = match(commend)
+            onMatch?.onMatch(match)
+        }catch (e:Exception){
+            onMatch?.onException(e)
+        }
+    }
+
+    fun listenMatch(onMatch:MatchListener){
+        this.onMatch = onMatch
     }
 
     fun version() = version

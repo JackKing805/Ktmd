@@ -10,7 +10,7 @@ val vv = "0.0.4"
 
 
 group = "com.cool"
-version = "1.0-SNAPSHOT"
+version = vv
 
 repositories {
     mavenCentral()
