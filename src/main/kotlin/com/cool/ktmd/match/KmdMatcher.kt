@@ -11,12 +11,14 @@ import com.cool.ktmd.match.model.MatchResult
 import com.cool.ktmd.match.model.Version
 import java.util.regex.Pattern
 
+//输入的命令会按定义命令的顺序输出
 class KmdMatcher(
     private val header:String,
     private val commends:Array<FormatterCommend>,
     private val version: Version = Version(1,"1.0")
 ) {
     private var onMatch:MatchListener?=null
+    private val systemCommendLine = commends.joinToString { "-${it.commend}" }
 
     //匹配header：(^header)
     //匹配commed:(-$commed +\w*)
@@ -32,7 +34,7 @@ class KmdMatcher(
 
     //(-\w*) ? -version
     //(-\w*) +([^-].*[^- ]) -open asd
-    //todo:优化规则1:-(\\w*)\\s+([^\\s-]+)
+    //优化规则1:-(\\w*)\\s+([^\\s-]+)
     private val keyValueRegex = Pattern.compile("-(\\w*)\\s+([^\\s-]+)")
     private val keyRegex = Pattern.compile("-(\\w+) ?")
 
@@ -100,11 +102,11 @@ class KmdMatcher(
         }
 
         countCommends.sortBy{
-            commend.indexOf("-${it.commend}")
+            systemCommendLine.indexOf("-${it.commend}")
         }
 
         unknownCommend.sortBy {
-            commend.indexOf("-${it.commend}")
+            systemCommendLine.indexOf("-${it.commend}")
         }
 
         return MatchResult(header,countCommends.toTypedArray(), unknownCommend.toTypedArray(),removeHeaderCommend,commends)
